@@ -1,26 +1,34 @@
 ﻿function onPageLoad()
 {
-    userId = getCookie("userid");
-    if (userId == "")
-    {
-        fetch('game/newuser')
-            .then(response => response.text())
-            .then(text => display(text));
-    }
-    else
-    {
-        gameId = getCookie("gameid");
-        fetch('game/existinggame?userid=' + userId + '&gameid=' + gameId)
-            .then(response => response.text())
-            .then(text => display(text));
-    }
+    fetch('game/start')
+        .then(response => response.text())
+        .then(text => displayContent(text));
 }
 
-function display(
+function onReactionClick(
+    reactionText)
+{
+    fetch('game/reaction?reactionText=' + reactionText)
+        .then(response => response.text())
+        .then(text => displayContent(text));
+    return false; // Ignore the href.
+}
+
+function onUndo()
+{
+    fetch('game/undo')
+        .then(response => response.text())
+        .then(text => displayContent(text));
+    return false; // Ignore the href.
+}
+
+function displayContent(
     content)
 {
     document.getElementById('content').innerHTML = content;
 }
+
+/* Didn't need this after all.
 
 function getCookie(
     nameToGet)
@@ -35,3 +43,4 @@ function getCookie(
     }
     return "";
 }
+*/

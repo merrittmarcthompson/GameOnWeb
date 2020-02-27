@@ -1,0 +1,57 @@
+SETTING,OPERATION,VALUE,FILE
+haveBobby,set,,house
+cried,set,,house
+cried,set not,,house
+lookingForBooze,set not,,house
+lookingForCoffee,set not,,house
+haveBobby,set not,,house
+lookingForCoffee,set,,house
+lookingForBooze,if,,house
+haveBobby,when not,,house
+lookingForCoffee,when,,house
+lookingForCoffee,when not,,house
+haveBobby,when,,house
+cried,when not,,house
+cried,when,,house
+lookingForBooze,when,,house
+heardTomsStory,when,,house
+tomVaultTecMan,if,didntSee,tom
+cynical,if,,tom
+heardTomsStory,set,,tom
+blindsOpen,if,,tom
+blindsOpen,if,,tom
+tomVaultTecMan,when not,doesntCare,tom
+tomVaultTecMan,when,doesntCare,tom
+signedUpForVault,when,,tom
+signedUpForVault,when,,tom
+dependent,when,,tom
+independent,when not,,tom
+dependent,when,,tom
+independent,when not,,tom
+trusting,when,,tom
+independent,when,,tom
+dependent,when not,,tom
+cynical,when,,tom
+trusting,when not,,tom
+cruel,when,,tom
+kind,when not,,tom
+brave,when not,,tom
+clever,when not,,tom
+tvOn,set,,vaultTecMan
+blindsOpen,set,,vaultTecMan
+tomVaultTecMan,set,didntSee,vaultTecMan
+signedUpForVault,set not,,vaultTecMan
+tvOn,set not,,vaultTecMan
+tvOn,set,,vaultTecMan
+vaultTecMan.familiar,set,,vaultTecMan
+blindsOpen,set not,,vaultTecMan
+tomVaultTecMan,set,saw,vaultTecMan
+tomVaultTecMan,set,doesntCare,vaultTecMan
+vaultTecMan.familiar,set,,vaultTecMan
+soldOnVaultByRealtor,set,,vaultTecMan
+signedUpForVault,set,,vaultTecMan
+signedUpForVault,set,,vaultTecMan
+tvOn,when,,vaultTecMan
+tvOn,when,,vaultTecMan
+tvOn,when not,,vaultTecMan
+tvOn,when not,,vaultTecMan
