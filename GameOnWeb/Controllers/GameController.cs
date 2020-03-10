@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Gamebook;
+using System;
 
 namespace GameOnWeb.Controllers
 {
@@ -18,20 +19,30 @@ namespace GameOnWeb.Controllers
       private static Dictionary<string, Unit> UnitsByUniqueId;
       private static Dictionary<string, ReactionArrow> ReactionArrowsByUniqueId;
 
-      // TODO: This needs to be stored in a permanent database or file.
-      private static int UserIdSerialNumber = 0;
-
       // This lets the HTTP APIs look up the user's game.
       // TODO: There's only one game per user for now.
       // TODO: This needs to go into a permanent database or file.
-      private static Dictionary<string, Game> UserContexts = new Dictionary<string, Game>();
+      private static string StartupErrorMessage = "";
+
+      private const string SaveFileExtension = "save.txt";
+      private const string GamesInProgressDirectoryName = "games";
 
       static GameController()
       {
          // Load the static game story. The HTTP APIs use this to generate games for users on clients.
-         (FirstUnit, UnitsByUniqueId, ReactionArrowsByUniqueId) = Unit.Load("books\\fo4-2.gb");
-      }
+         try
+         {
+            // TODO: The books folder doesn't get published automatically. Must publish manually. See google for a way to fix this.
+            (FirstUnit, UnitsByUniqueId, ReactionArrowsByUniqueId) = Unit.Load("books\\fo4-2.gb");
 
+            // Make sure the directory that contains all the games-in-progress exists.
+            Directory.CreateDirectory(GamesInProgressDirectoryName);
+         }
+         catch (Exception exception)
+         {
+            StartupErrorMessage = exception.Message;
+         }
+      }
 
       // GAME TEXT CREATION
 
@@ -121,11 +132,12 @@ namespace GameOnWeb.Controllers
          }
       }
 
-      private string BuildHtmlContent(
+      private string BuildHtml(
          Game game)
       {
          // The Game contains a text version of the game content. This code converts that into HTML for display.
          var result = "";
+
          var first = true;
          foreach (var paragraphText in game.GetActionText().Split('@'))
          {
@@ -149,40 +161,84 @@ namespace GameOnWeb.Controllers
       }
 
 
-      // HTTP API
+      // HTTP API SUPPORT ROUTINES
 
-      private Game GetGameForUser()
+      private void AddToMiniLog(
+         ref string miniLog,
+         string message)
       {
-         if (!ControllerContext.HttpContext.Request.Cookies.TryGetValue("userid", out var userId))
-            // They've never played before.
-            return null;
-
-         // If they have a cookie on the client, they've played before. Therefore continue with their previous game.
-         return UserContexts[userId];
+         miniLog += String.Format("<p>{0}</p>", message);
       }
+
+      private void SaveGameToFile(
+         string gameFilePath,
+         Game game,
+         ref string miniLog)
+      {
+         using var writer = new StreamWriter(gameFilePath, false);
+         game.Save(writer);
+         AddToMiniLog(ref miniLog, "Saved game in " + gameFilePath);
+      }
+
+      private ContentResult BuildContent(
+         string contentString,
+         string miniLog)
+      {
+         return base.Content(miniLog + contentString, "text/html");
+      }
+
+      private (string, Game) GetGameForUserCookie(
+         ref string miniLog)
+      {
+         // First make sure they have a user ID cookie.
+         if (!ControllerContext.HttpContext.Request.Cookies.TryGetValue("userid", out var userId))
+         {
+            // They have no userid cookie. Generate a user ID and send it to the client as a cookie. All of the HTTP APIs use this user ID value to find the user's games.
+            userId = Guid.NewGuid().ToString();
+            ControllerContext.HttpContext.Response.Cookies.Append("userid", userId);
+            AddToMiniLog(ref miniLog, "No userid cookie. Generated " + userId);
+         }
+         else
+            AddToMiniLog(ref miniLog, "Using existing userid cookie " + userId);
+
+         // Next, make sure there's a game for the user ID.
+         Game game;
+         var gameFilePath = Path.Combine(GamesInProgressDirectoryName, userId + "." + SaveFileExtension);
+         AddToMiniLog(ref miniLog, "check game file path exists: " + gameFilePath);
+         if (System.IO.File.Exists(gameFilePath))
+         {
+            // Load the existing game.
+            using var reader = new StreamReader(gameFilePath);
+            game = new Game(reader, UnitsByUniqueId, ReactionArrowsByUniqueId);
+            AddToMiniLog(ref miniLog, "Loaded existing game.");
+         }
+         else
+         {
+            // Create a new game for the new user and save it to disk.
+            game = new Game(FirstUnit);
+            AddToMiniLog(ref miniLog, "Created new game.");
+            SaveGameToFile(gameFilePath, game, ref miniLog);
+         }
+
+         // There is now a loaded game in memory and a game on disk.
+         return (gameFilePath, game);
+      }
+
+
+      // HTTP API
 
       [HttpGet("start")]
       public ContentResult GetStart()
       {
-         var game = GetGameForUser();
+         // Start a new game or continue an existing game.
+         var miniLog = "";
+         AddToMiniLog(ref miniLog, "In start.");
 
-         if (game == null)
-         {
-            // If there is no user ID cookie set up on the client, we a) create a new cookie from our serial number and b) create the first new game for the user. This makes it easy for people to try out the game. They don't have to register or anything. They just start playing. They can register later if they want.
+         if (StartupErrorMessage != "")
+            return BuildContent("Error on startup: " + StartupErrorMessage, miniLog);
 
-            // Create a new user ID.
-            // TODO: Persist to file.
-            var userId = (++UserIdSerialNumber).ToString();
-
-            // Send the user ID to the client as a cookie. All of the HTTP APIs use this user ID value to find the user's games.
-            ControllerContext.HttpContext.Response.Cookies.Append("userid", userId);
-
-            // Create a new game for the new user.
-            game = new Game(FirstUnit);
-            UserContexts.Add(userId, game);
-         }
-
-         return base.Content(BuildHtmlContent(game), "text/html");
+         (var gameFilePath, var game) = GetGameForUserCookie(ref miniLog);
+         return BuildContent(BuildHtml(game), miniLog);
       }
 
       [HttpGet("reaction")]
@@ -190,15 +246,19 @@ namespace GameOnWeb.Controllers
          string reactionText)
       {
          // After the user sees a game page, they can pick one of the reactions. In response, the server sends a new game page that shows what happened and includes more reaction options.
-         var game = GetGameForUser();
-         if (game == null)
-         {
-            // This shouldn't happen.
-            return base.Content("Internal error: Couldn't find any user ID cookie", "text/html");
-         }
+         var miniLog = "";
+         AddToMiniLog(ref miniLog, "In reaction.");
 
+         if (StartupErrorMessage != "")
+            return BuildContent("Error on startup: " + StartupErrorMessage, miniLog);
+
+         (var gameFilePath, var game) = GetGameForUserCookie(ref miniLog);
          game.MoveToReaction(reactionText);
-         return base.Content(BuildHtmlContent(game), "text/html");
+
+         // Save game state to disk.
+         SaveGameToFile(gameFilePath, game, ref miniLog);
+
+         return BuildContent(BuildHtml(game), miniLog);
       }
 
       [HttpGet("undo")]
@@ -207,15 +267,32 @@ namespace GameOnWeb.Controllers
          string gameId)
       {
          // The lets the user can go back to the previous game page.
-         var game = GetGameForUser();
-         if (game == null)
-         {
-            // This shouldn't happen.
-            return base.Content("Internal error: Couldn't find any user ID cookie", "text/html");
-         }
+         var miniLog = "";
+         AddToMiniLog(ref miniLog, "In undo.");
 
+         // After the user sees a game page, they can pick one of the reactions. In response, the server sends a new game page that shows what happened and includes more reaction options.
+         if (StartupErrorMessage != "")
+            return BuildContent("Error on startup: " + StartupErrorMessage, miniLog);
+
+         (var gameFilePath, var game) = GetGameForUserCookie(ref miniLog);
          game.Undo();
-         return base.Content(BuildHtmlContent(game), "text/html");
+
+         // Save game state to disk.
+         SaveGameToFile(gameFilePath, game, ref miniLog);
+
+         return BuildContent(BuildHtml(game), miniLog);
+      }
+
+      [HttpGet("clean")]
+      public ContentResult GetClean()
+      {
+         // This is for testing only. It clears the user ID cookie so you can test a clean startup.
+         var miniLog = "";
+         AddToMiniLog(ref miniLog, "In clean.");
+
+         ControllerContext.HttpContext.Response.Cookies.Delete("userid");
+
+         return BuildContent("", miniLog);
       }
 
       [HttpGet("changeuserid")]

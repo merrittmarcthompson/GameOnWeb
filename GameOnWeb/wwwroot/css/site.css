@@ -1,7 +1,8 @@
 ﻿body {
     font-family: 'Segoe UI';
-    font-size: medium;
-    margin: 4%;
+    font-size: 30px;
+    margin: 18px;
+    line-height: 30px;
 }
 
 a:link {
