@@ -167,7 +167,7 @@ namespace GameOnWeb.Controllers
          ref string miniLog,
          string message)
       {
-         miniLog += String.Format("<p>{0}</p>", message);
+         miniLog += String.Format("• {0}<br>", message);
       }
 
       private void SaveGameToFile(
@@ -301,7 +301,7 @@ namespace GameOnWeb.Controllers
          string toUserId)
       {
          // The user ID created by GetNewUser is stored in a cookie on the device they were using at the time. The player can create their own unique user ID string to replace that. That lets them play their games on any device.
-         return base.Content("<div>Change User ID TBD<div>", "text/html");
+         return base.Content("<div>Change User ID TBD</div>", "text/html");
       }
 
       [HttpGet("gamelist")]
@@ -309,7 +309,7 @@ namespace GameOnWeb.Controllers
          string userId)
       {
          // This returns the list of all games the user has going. When they pick a game, the client uses GetExistingGame to start playing it.
-         return base.Content("<div>Game list TBD<div>", "text/html");
+         return base.Content("<div>Game list TBD</div>", "text/html");
       }
 
       [HttpGet("existinggame")]
@@ -318,7 +318,7 @@ namespace GameOnWeb.Controllers
          string gameId)
       {
          // This starts continuing to play a game the user already has, as selected from GetGameList earlier.
-         return base.Content("<div>Existing game<div>", "text/html");
+         return base.Content("<div>Existing game</div>", "text/html");
       }
 
 
